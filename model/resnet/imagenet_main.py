@@ -22,10 +22,29 @@ import argparse
 import os
 import sys
 
+import numpy as np
 import tensorflow as tf
 
+from DataLoader import *
 import resnet_model
 import vgg_preprocessing
+
+# Dataset Parameters
+batch_size = 200
+load_size = 256
+fine_size = 224
+c = 3
+data_mean = np.asarray([0.45834960097,0.44674252445,0.41352266842])
+
+# Training Parameters
+learning_rate = 0.001
+dropout = 0.5 # Dropout, probability to keep units
+training_iters = 100000
+step_display = 50
+step_save = 10000
+path_save = 'alexnet'
+start_from = ''
+
 
 parser = argparse.ArgumentParser()
 
@@ -50,7 +69,7 @@ parser.add_argument(
     help='The number of training epochs to run between evaluations.')
 
 parser.add_argument(
-    '--batch_size', type=int, default=32,
+    '--batch_size', type=int, default=100,
     help='Batch size for training and evaluation.')
 
 parser.add_argument(
@@ -61,16 +80,16 @@ parser.add_argument(
          'with CPU. If left unspecified, the data format will be chosen '
          'automatically based on whether TensorFlow was built for CPU or GPU.')
 
-_DEFAULT_IMAGE_SIZE = 224
+_DEFAULT_IMAGE_SIZE = 128
 _NUM_CHANNELS = 3
-_LABEL_CLASSES = 1001
+_LABEL_CLASSES = 100
 
 _MOMENTUM = 0.9
 _WEIGHT_DECAY = 1e-4
 
 _NUM_IMAGES = {
-    'train': 1281167,
-    'validation': 50000,
+    'train': 100000,
+    'validation': 10000,
 }
 
 _FILE_SHUFFLE_BUFFER = 1024
@@ -131,38 +150,47 @@ def record_parser(value, is_training):
 
   return image, tf.one_hot(label, _LABEL_CLASSES)
 
+# Construct dataloader
+opt_data_train = {
+    #'data_h5': 'miniplaces_256_train.h5',
+    'data_root': '../../data/images/',   # MODIFY PATH ACCORDINGLY
+    'data_list': '../../data/train.txt', # MODIFY PATH ACCORDINGLY
+    'load_size': load_size,
+    'fine_size': fine_size,
+    'data_mean': data_mean,
+    'randomize': True
+    }
+opt_data_val = {
+    #'data_h5': 'miniplaces_256_val.h5',
+    'data_root': '../../data/images/',   # MODIFY PATH ACCORDINGLY
+    'data_list': '../../data/val.txt',   # MODIFY PATH ACCORDINGLY
+    'load_size': load_size,
+    'fine_size': fine_size,
+    'data_mean': data_mean,
+    'randomize': False
+    }
+
+loader_train = DataLoaderDisk(**opt_data_train)
+loader_val = DataLoaderDisk(**opt_data_val)
+#
 
 def input_fn(is_training, data_dir, batch_size, num_epochs=1):
   """Input function which provides batches for train or eval."""
-  dataset = tf.data.Dataset.from_tensor_slices(filenames(is_training, data_dir))
 
   if is_training:
-    dataset = dataset.shuffle(buffer_size=_FILE_SHUFFLE_BUFFER)
+    dataset = loader_train.next_batch(batch_size)
+  else:
+	dataset = loader_val.next_batch(batch_size)
 
-  dataset = dataset.flat_map(tf.data.TFRecordDataset)
-  dataset = dataset.map(lambda value: record_parser(value, is_training),
-                        num_parallel_calls=5)
-  dataset = dataset.prefetch(batch_size)
+  images, labels = dataset[0].astype('float32'), dataset[1].astype('float32')
 
-  if is_training:
-    # When choosing shuffle buffer sizes, larger sizes result in better
-    # randomness, while smaller sizes have better performance.
-    dataset = dataset.shuffle(buffer_size=_SHUFFLE_BUFFER)
-
-  # We call repeat after shuffling, rather than before, to prevent separate
-  # epochs from blending together.
-  dataset = dataset.repeat(num_epochs)
-  dataset = dataset.batch(batch_size)
-
-  iterator = dataset.make_one_shot_iterator()
-  images, labels = iterator.get_next()
-  return images, labels
+  return images, tf.one_hot(labels, 100)
 
 
 def resnet_model_fn(features, labels, mode, params):
   """Our model_fn for ResNet to be used with our Estimator."""
   tf.summary.image('images', features, max_outputs=6)
-
+  print(features.shape)
   network = resnet_model.imagenet_resnet_v2(
       params['resnet_size'], _LABEL_CLASSES, params['data_format'])
   logits = network(
@@ -175,7 +203,9 @@ def resnet_model_fn(features, labels, mode, params):
 
   if mode == tf.estimator.ModeKeys.PREDICT:
     return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
-
+	
+  print(logits.shape)
+  print(labels)
   # Calculate loss, which includes softmax cross entropy and L2 regularization.
   cross_entropy = tf.losses.softmax_cross_entropy(
       logits=logits, onehot_labels=labels)
