@@ -53,7 +53,7 @@ parser.add_argument(
     help='The directory where the ImageNet input data is stored.')
 
 parser.add_argument(
-    '--model_dir', type=str, default='/tmp/resnet_model',
+    '--model_dir', type=str, default='build/resnet_model',
     help='The directory where the model will be stored.')
 
 parser.add_argument(
@@ -61,7 +61,7 @@ parser.add_argument(
     help='The size of the ResNet model to use.')
 
 parser.add_argument(
-    '--train_epochs', type=int, default=100,
+    '--train_epochs', type=int, default=1,
     help='The number of epochs to use for training.')
 
 parser.add_argument(
@@ -90,6 +90,7 @@ _WEIGHT_DECAY = 1e-4
 _NUM_IMAGES = {
     'train': 100000,
     'validation': 10000,
+    'test': 100000,
 }
 
 _FILE_SHUFFLE_BUFFER = 1024
@@ -176,11 +177,11 @@ loader_val = DataLoaderDisk(**opt_data_val)
 
 def input_fn(is_training, data_dir, batch_size, num_epochs=1):
   """Input function which provides batches for train or eval."""
-
+  print("INPUT_FN CALLED")
   if is_training:
     dataset = loader_train.next_batch(batch_size)
   else:
-	dataset = loader_val.next_batch(batch_size)
+    dataset = loader_val.next_batch(batch_size)
 
   images, labels = dataset[0].astype('float32'), dataset[1].astype('float32')
 
@@ -204,7 +205,7 @@ def resnet_model_fn(features, labels, mode, params):
   if mode == tf.estimator.ModeKeys.PREDICT:
     return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
 	
-  print(logits.shape)
+  print(features.shape)
   print(labels)
   # Calculate loss, which includes softmax cross entropy and L2 regularization.
   cross_entropy = tf.losses.softmax_cross_entropy(
@@ -281,6 +282,8 @@ def main(unused_argv):
       })
 
   for _ in range(FLAGS.train_epochs // FLAGS.epochs_per_eval):
+    print("HELLO")
+    """
     tensors_to_log = {
         'learning_rate': 'learning_rate',
         'cross_entropy': 'cross_entropy',
@@ -295,10 +298,20 @@ def main(unused_argv):
         input_fn=lambda: input_fn(
             True, FLAGS.data_dir, FLAGS.batch_size, FLAGS.epochs_per_eval),
         hooks=[logging_hook])
-
+    """
+    
     print('Starting to evaluate.')
+    eval_tensors_to_log = {
+        'cross_entropy': 'cross_entropy',
+        'train_accuracy': 'train_accuracy'
+    }
+    
+    eval_logging_hook = tf.train.LoggingTensorHook(
+        tensors=eval_tensors_to_log, every_n_iter=100)
+
     eval_results = resnet_classifier.evaluate(
-        input_fn=lambda: input_fn(False, FLAGS.data_dir, FLAGS.batch_size))
+        input_fn=lambda: input_fn(False, FLAGS.data_dir, FLAGS.batch_size),
+        hooks=[eval_logging_hook])
     print(eval_results)
 
 
