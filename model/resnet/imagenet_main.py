@@ -37,7 +37,7 @@ c = 3
 data_mean = np.asarray([0.45834960097,0.44674252445,0.41352266842])
 
 # Training Parameters
-learning_rate = 0.001
+learning_rate = 0.0001
 dropout = 0.5 # Dropout, probability to keep units
 training_iters = 100000
 step_display = 50
@@ -53,11 +53,11 @@ parser.add_argument(
     help='The directory where the ImageNet input data is stored.')
 
 parser.add_argument(
-    '--model_dir', type=str, default='build/resnet_model',
+    '--model_dir', type=str, default='build/resnet_momen_34_model',
     help='The directory where the model will be stored.')
 
 parser.add_argument(
-    '--resnet_size', type=int, default=50, choices=[18, 34, 50, 101, 152, 200],
+    '--resnet_size', type=int, default=34, choices=[18, 34, 50, 101, 152, 200],
     help='The size of the ResNet model to use.')
 
 parser.add_argument(
@@ -90,7 +90,7 @@ _WEIGHT_DECAY = 1e-4
 _NUM_IMAGES = {
     'train': 100000,
     'validation': 10000,
-    'test': 100000,
+    'test': 10000,
 }
 
 _FILE_SHUFFLE_BUFFER = 1024
@@ -224,7 +224,7 @@ def resnet_model_fn(features, labels, mode, params):
   if mode == tf.estimator.ModeKeys.TRAIN:
     # Scale the learning rate linearly with the batch size. When the batch size
     # is 256, the learning rate should be 0.1.
-    initial_learning_rate = 0.1 * params['batch_size'] / 256
+    initial_learning_rate = 0.0001 * params['batch_size'] / 256
     batches_per_epoch = _NUM_IMAGES['train'] / params['batch_size']
     global_step = tf.train.get_or_create_global_step()
 
@@ -239,11 +239,12 @@ def resnet_model_fn(features, labels, mode, params):
     # Create a tensor named learning_rate for logging purposes.
     tf.identity(learning_rate, name='learning_rate')
     tf.summary.scalar('learning_rate', learning_rate)
-
     optimizer = tf.train.MomentumOptimizer(
         learning_rate=learning_rate,
         momentum=_MOMENTUM)
-
+    """
+    optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
+    """
     # Batch norm requires update_ops to be added as a train_op dependency.
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     with tf.control_dependencies(update_ops):
@@ -272,7 +273,7 @@ def main(unused_argv):
   os.environ['TF_ENABLE_WINOGRAD_NONFUSED'] = '1'
 
   # Set up a RunConfig to only save checkpoints once per training cycle.
-  run_config = tf.estimator.RunConfig().replace(save_checkpoints_secs=1e9)
+  run_config = tf.estimator.RunConfig().replace(save_checkpoints_steps=200)
   resnet_classifier = tf.estimator.Estimator(
       model_fn=resnet_model_fn, model_dir=FLAGS.model_dir, config=run_config,
       params={
@@ -281,38 +282,33 @@ def main(unused_argv):
           'batch_size': FLAGS.batch_size,
       })
 
-  for _ in range(FLAGS.train_epochs // FLAGS.epochs_per_eval):
-    print("HELLO")
-    """
-    tensors_to_log = {
-        'learning_rate': 'learning_rate',
-        'cross_entropy': 'cross_entropy',
-        'train_accuracy': 'train_accuracy'
-    }
+  print("HELLO")
+  tensors_to_log = {
+  'learning_rate': 'learning_rate',
+  'cross_entropy': 'cross_entropy',
+  'train_accuracy': 'train_accuracy'
+  }
 
-    logging_hook = tf.train.LoggingTensorHook(
-        tensors=tensors_to_log, every_n_iter=100)
+  logging_hook = tf.train.LoggingTensorHook(
+  tensors=tensors_to_log, every_n_iter=100)
 
-    print('Starting a training cycle.')
-    resnet_classifier.train(
-        input_fn=lambda: input_fn(
-            True, FLAGS.data_dir, FLAGS.batch_size, FLAGS.epochs_per_eval),
-        hooks=[logging_hook])
-    """
-    
-    print('Starting to evaluate.')
-    eval_tensors_to_log = {
-        'cross_entropy': 'cross_entropy',
-        'train_accuracy': 'train_accuracy'
-    }
-    
-    eval_logging_hook = tf.train.LoggingTensorHook(
-        tensors=eval_tensors_to_log, every_n_iter=100)
+  print('Starting a training cycle.')
+  resnet_classifier.train(
+  input_fn=lambda: input_fn(
+      True, FLAGS.data_dir, FLAGS.batch_size, 1),
+  hooks=[logging_hook])
 
-    eval_results = resnet_classifier.evaluate(
-        input_fn=lambda: input_fn(False, FLAGS.data_dir, FLAGS.batch_size),
-        hooks=[eval_logging_hook])
-    print(eval_results)
+  eval_tensors_to_log = {
+  'cross_entropy': 'cross_entropy',
+  'train_accuracy': 'train_accuracy'
+  }
+
+  eval_logging_hook = tf.train.LoggingTensorHook(
+  tensors=eval_tensors_to_log, every_n_iter=100)
+
+  eval_results = resnet_classifier.evaluate(
+  input_fn=lambda: input_fn(False, FLAGS.data_dir, FLAGS.batch_size), steps=20)
+  print("VALIDATE: ", eval_results)
 
 
 if __name__ == '__main__':
