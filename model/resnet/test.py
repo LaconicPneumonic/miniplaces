@@ -17,8 +17,8 @@ from resnet_model import imagenet_resnet_v2
 
   
 # Dataset Parameters
-path_save = './build/resnet_model/model.ckpt-5'
-model_dir = './build/resnet_model'
+model_dir = './build/resnet_adam_model'
+path_save = os.path.join(model_dir, 'model.ckpt-50801')
 images_dir = '../../data/images/test/'
 resnet_size = 50 
 data_format = 100
@@ -29,8 +29,7 @@ c = 3
 data_mean = np.asarray([0.45834960097,0.44674252445,0.41352266842])
 classes = 100
 
-
-
+write = False
 x = tf.placeholder(tf.float32, [None, fine_size, fine_size, c])
 network = imagenet_resnet_v2(resnet_size, classes, None) 
 logits = network(inputs=x, is_training=False)
@@ -74,10 +73,12 @@ def main():
 						break
 
 				feed_dict = {x: images_batch}   
-				top_5 = sess.run(tf.nn.top_k(logits, k=5, sorted=True, name=None), feed_dict)
+				top_5 = sess.run(tf.nn.top_k(logits, k=5, sorted=False, name=None), feed_dict)
 				
 				for line, im_name in zip(top_5[1], images_name):
 					f.write("test/" + im_name + " " + " ".join([str(line[i]) for i in range(5)])+ "\n")
+						
+						
 	return 0
 		 
 if __name__ == '__main__':

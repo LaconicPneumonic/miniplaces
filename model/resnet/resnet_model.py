@@ -36,7 +36,7 @@ import tensorflow as tf
 
 _BATCH_NORM_DECAY = 0.997
 _BATCH_NORM_EPSILON = 1e-5
-
+_DROPOUT = 0.750
 
 def batch_norm_relu(inputs, is_training, data_format):
   """Performs a batch normalization followed by a ReLU."""
@@ -171,7 +171,7 @@ def bottleneck_block(inputs, filters, is_training, projection_shortcut,
   inputs = conv2d_fixed_padding(
       inputs=inputs, filters=4 * filters, kernel_size=1, strides=1,
       data_format=data_format)
-
+  inputs = tf.layers.dropout(inputs, rate=_DROPOUT, training=is_training)
   return inputs + shortcut
 
 
