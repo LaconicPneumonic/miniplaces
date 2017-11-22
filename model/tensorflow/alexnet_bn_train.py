@@ -16,9 +16,9 @@ learning_rate = 0.001
 dropout = 0.5 # Dropout, probability to keep units
 training_iters = 50000
 step_display = 50
-step_save = 10000
-path_save = 'alexnet_bn'
-start_from = 'alexnet_bn-10000'
+step_save = 1000
+path_save = 'alexnet_bn-150'
+start_from = 'alexnet_bn-150'
 
 def batch_norm_layer(x, train_phase, scope_bn):
     return batch_norm(x, decay=0.9, center=True, scale=True,
@@ -128,7 +128,7 @@ logits = alexnet(x, keep_dropout, train_phase)
 # Define loss and optimizer
 loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=y, logits=logits))
 train_optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(loss)
-
+# train_optimizer = tf.train.AdagradOptimizer(learning_rate=learning_rate).minimize(loss)
 # Evaluate model
 accuracy1 = tf.reduce_mean(tf.cast(tf.nn.in_top_k(logits, y, 1), tf.float32))
 accuracy5 = tf.reduce_mean(tf.cast(tf.nn.in_top_k(logits, y, 5), tf.float32))
@@ -138,12 +138,9 @@ init = tf.global_variables_initializer()
 
 # define saver
 saver = tf.train.Saver()
-
 # define summary writer
-#writer = tf.train.SummaryWriter('.', graph=tf.get_default_graph())
-
+# writer = tf.train.SummaryWriter('.', graph=tf.get_default_graph())
 # Launch the graph
-"""
 with tf.Session() as sess:
     # Initialization
     if len(start_from)>1:
@@ -174,6 +171,10 @@ with tf.Session() as sess:
                   "{:.6f}".format(l) + ", Accuracy Top1 = " + \
                   "{:.4f}".format(acc1) + ", Top5 = " + \
                   "{:.4f}".format(acc5))
+
+            if acc5 > 0.71:
+                saver.save(sess, path_save, global_step=step)
+                print("Found model over 70%")
         
         # Run optimization op (backprop)
         sess.run(train_optimizer, feed_dict={x: images_batch, y: labels_batch, keep_dropout: dropout, train_phase: True})
@@ -208,7 +209,6 @@ with tf.Session() as sess:
     print('Evaluation Finished! Accuracy Top1 = ' + "{:.4f}".format(acc1_total) + ", Top5 = " + "{:.4f}".format(acc5_total))
 """
 # Dataset Parameters
-path_save = 'alexnet_bn-10000'
 model_dir = './'
 images_dir = '../../data/images/test/'
 resnet_size = 50 
@@ -256,5 +256,4 @@ with tf.Session() as sess:
 				
 			for line, im_name in zip(acc5[1], images_name):
 				f.write("test/" + im_name + " " + " ".join([str(line[i]) for i in range(5)])+ "\n")
-						
-						
+"""

@@ -2,6 +2,7 @@ import os
 import numpy as np
 import scipy.misc
 import h5py
+import cv2
 np.random.seed(123)
 
 # loading data from .h5
@@ -109,6 +110,18 @@ class DataLoaderDisk(object):
                     image = image[:,::-1,:]
                 offset_h = np.random.random_integers(0, self.load_size-self.fine_size)
                 offset_w = np.random.random_integers(0, self.load_size-self.fine_size)
+				
+                rows,cols, _ = image.shape
+                M = cv2.getRotationMatrix2D((cols/2,rows/2), 180.0 - 360 * np.random.random_sample(),1)
+                image = cv2.warpAffine(image,M,(cols,rows))
+                num = np.random.random_sample()
+		image = cv2.GaussianBlur(image, (7, 7), 2*np.random.random_sample())
+                
+                num1 = np.random.random_sample()
+                num2 = np.random.random_sample()   
+                M1 = np.float32([[1,0,cols*num1],[0,1,rows*num2]])
+                image = cv2.warpAffine(image,M1, (cols, rows))
+
             else:
                 offset_h = (self.load_size-self.fine_size)//2
                 offset_w = (self.load_size-self.fine_size)//2
